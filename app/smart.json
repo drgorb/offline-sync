@@ -1,0 +1,10 @@
+{
+  "packages": {
+    "moment": {},
+    "pince": {},
+    "crypto-md5": {},
+    "iron-router": {},
+    "async": {},
+    "bootstrap-3": {}
+  }
+}

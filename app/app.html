@@ -1,0 +1,62 @@
+      <head>
+         <title>app</title>
+      </head>
+
+      <body>
+      </body>
+
+      <template name="hello">
+
+         <h1>Array size: <span>{{elements}}</span> </h1>
+
+         <p>
+            <input type="button" value="Click"/>
+         </p>
+
+         <ul>
+            {{#if activityTagsReady}}
+            <li>activityTags: {{activityTags.sent}} of {{activityTags.subscribed}} totalling
+               {{activityTags.data}} local {{activityTags.stored}}</li>
+            {{/if}}
+            <li>activities: {{activities.sent}} of {{activities.subscribed}} totalling
+               {{activities.data}} local {{activities.stored}}</li>
+            <li>tbabeCatalog: {{tbabeCatalog.sent}} of {{tbabeCatalog.subscribed}} totalling
+               {{tbabeCatalog.data}} local {{tbabeCatalog.stored}}</li>
+            <li>tbabeActivities: {{tbabeActivities.sent}} of {{tbabeActivities.subscribed}} totalling
+               {{tbabeActivities.data}} local {{tbabeActivities.stored}}</li>
+         </ul>
+
+         <div class="btn-group select">
+            <button data-toggle="dropdown" class="btn dropdown-toggle btn-primary">
+               <span class="filter-option pull-left">{{selectedKreis.name.de}}</span>&nbsp;
+               <span class="caret"></span>
+            </button>
+
+            <i class="dropdown-arrow dropdown-arrow-inverse"></i>
+            <ul role="menu" class="dropdown-menu dropdown-inverse">
+               {{#each kreis}}
+               <li><a class="kreis" href="#"
+                      tabindex="-1"><span class="pull-left">{{name.de}}</span></a>
+               </li>
+               {{/each}}
+            </ul>
+
+         </div>
+
+         <div class="btn-group select">
+            <button data-toggle="dropdown" class="btn dropdown-toggle btn-primary">
+               <span class="filter-option pull-left">{{selectedStrabsch.name.de}}</span>&nbsp;
+               <span class="caret"></span>
+            </button>
+
+            <i class="dropdown-arrow dropdown-arrow-inverse"></i>
+            <ul role="menu" class="dropdown-menu dropdown-inverse">
+               {{#each strabsch}}
+               <li><a class="strabsch" href="#"
+                      tabindex="-1"><span class="pull-left">{{name.de}}</span></a>
+               </li>
+               {{/each}}
+            </ul>
+
+         </div>
+      </template>

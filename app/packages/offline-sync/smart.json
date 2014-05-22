@@ -1,0 +1,22 @@
+{
+   "name": "offline-sync",
+   "description": "OfflineSync gets collections stores them in an indexedDB on the client and keeps them synchronized with the server",
+   "homepage": "https://github.com/drgorb/offline-sync",
+   "author": "Micha Roon",
+   "version": "0.0.1",
+   "git": "https://github.com/drgorb/offline-sync.git",
+   "packages": {
+      "moment": {
+         "git": "git@github.com:acreeger/meteor-moment.git"
+      },
+      "pince": {
+         "git": "git@github.com:mad-eye/pince.git"
+      },
+      "crypto-md5": {
+         "git": "git@github.com:oortcloud/meteor-crypto-md5.git"
+      },
+      "iron-router": {
+         "git": "git@github.com:EventedMind/iron-router.git"
+      }
+   }
+}
