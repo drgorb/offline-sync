@@ -50,19 +50,15 @@ Meteor.startup(function () {
       };
    })
 
-   Deps.autorun(function () {
-      if (tbabeCatalog.ready()) {
-         OfflineSync.subscribe("kreis", function () {
-            console.log("tbabeCatalog count = " + tbabeCatalog.find().count());
-            var kreis = tbabeCatalog.findOne({type: "kreis"});
-            Session.set("selectedKreis", kreis);
-            OfflineSync.subscribe("strabsch", kreis, function () {
-               console.log("strabsch count for " + kreis.name.de + " = " + tbabeCatalog.find({type: "strabsch"}).count());
-               Session.set("selectedStrabsch", tbabeCatalog.findOne({type: "strabsch", kreis: kreis._id}))
-            });
+   OfflineSync.subscribe("kreis", function () {
+      console.log("tbabeCatalog count = " + tbabeCatalog.find().count());
+      var kreis = tbabeCatalog.findOne({type: "kreis"});
+      Session.set("selectedKreis", kreis);
+      OfflineSync.subscribe("strabsch", kreis, function () {
+         console.log("strabsch count for " + kreis.name.de + " = " + tbabeCatalog.find({type: "strabsch"}).count());
+         Session.set("selectedStrabsch", tbabeCatalog.findOne({type: "strabsch", kreis: kreis._id}))
+      });
 
-         });
-      }
-   })
+   });
 });
 

@@ -26,6 +26,7 @@ tbabeCatalog = new OfflineSync.Collection("tbabeCatalog",
                                           }
 );
 
+/*
 tbabeActivities = new OfflineSync.Collection("tbabeActivities",
                                         {
                                            indexes: {name: "tbabeTags", attributes: ["obj", "marktyp", "arbart"]},
@@ -33,3 +34,4 @@ tbabeActivities = new OfflineSync.Collection("tbabeActivities",
                                            version: 1
                                         }
 );
+*/

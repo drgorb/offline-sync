@@ -7,18 +7,24 @@ var subscriptions = {};
 var publish = {};
 
 /*call the queued subscriptions*/
-var subcribeAll = function(db){
+var subcribeAll = function (db) {
    OfflineSync.db = db;
+   /**
+    * there might be some subscriptions waiting for db initialisation. Execute them now*/
+   _(subscriptionQueue).each(function(subscriptionCall){
+      subscriptionCall();
+   })
+
    log.trace("subscribing to " + EJSON.stringify(OfflineSync.db.objectStoreNames));
    /*get al the documents since last update for each collection
     * each storeName is the same as the offline collection's*/
    /*we want to call the subscriptions one after the other. for this we put the calls in an array and
-   * use async.series to execute them*/
+    * use async.series to execute them*/
    var subscriptionCalls = [];
-   _(OfflineSync.db.objectStoreNames).each(function(storeName){
+   _(OfflineSync.db.objectStoreNames).each(function (storeName) {
       /*only do the subscription thing for collections which have been initialized. the IndexedDB might be used
-      for other things as well*/
-      if(collections[storeName]){
+       for other things as well*/
+      if (collections[storeName]) {
          subscriptionCalls.push(function (callback) {
             log.trace("subscription for " + storeName);
             var tx = db.transaction(storeName);
@@ -57,7 +63,7 @@ var subcribeAll = function(db){
                         added: function (newDoc) {
                            var errorCount = 0;
                            var getJSON = function (chunk, method) {
-                              HTTP.get(Meteor.absoluteUrl() + "offlineSyncData/"+method+"/" + newDoc.subscriptionId +
+                              HTTP.get(Meteor.absoluteUrl() + "offlineSyncData/" + method + "/" + newDoc.subscriptionId +
                                           "/" + chunk, {timeout: 60000}, function (err, result) {
                                  /**check that everything went fine before storing the data*/
                                  if (!err && result.data && _(result.data.documents).isArray()) {
@@ -66,14 +72,14 @@ var subcribeAll = function(db){
                                     var store = tx.objectStore(storeName);
                                     var i = 0;
                                     _(result.data.documents).each(function (document) {
-                                       if(method == "new"){
-                                          store.put(document).onsuccess = function(evt){
+                                       if (method == "new") {
+                                          store.put(document).onsuccess = function (evt) {
                                              log.trace("written row " + (++i) + " to " + storeName);
                                           };
                                           if (lastUpdate < document._writeTimeStamp) {
                                              lastUpdate = document._writeTimeStamp;
                                           }
-                                       } else if(method == "removed"){
+                                       } else if (method == "removed") {
                                           store.delete(document._id);
                                           if (lastRemoved < document.timeStamp) {
                                              lastRemoved = document.timeStamp;
@@ -98,10 +104,10 @@ var subcribeAll = function(db){
                                  if (errorCount < 10 && (!result.data || (result.data && !result.data.ready))) {
                                     /*get the next chunk*/
                                     getJSON(chunk + 1, method);//as this call is made from inside a callback it does not count as recursive
-                                 } else if (result.data && result.data.ready){
+                                 } else if (result.data && result.data.ready) {
                                     tx = OfflineSync.db.transaction(storeName, "readwrite");
                                     store = tx.objectStore(storeName);
-                                    if(method == "new") {
+                                    if (method == "new") {
                                        /*lastUpdate might be undefined if none of the documents contained the attribute or no
                                         * documents were retrieved*/
                                        if (!lastUpdate) {
@@ -115,7 +121,7 @@ var subcribeAll = function(db){
                                        /*once all the new documents have been downloaded, remove the ones which have been
                                         * deleted since last update*/
                                        getJSON(0, "removed");
-                                    } else if(method == "removed"){
+                                    } else if (method == "removed") {
                                        /*lastRemoved might be undefined if nothing was removed since last sync*/
                                        if (!lastRemoved) {
                                           lastRemoved = 1;
@@ -140,11 +146,15 @@ var subcribeAll = function(db){
       }
    });
 
-   if(subscriptionCalls.length > 0){
-      log.trace("calling "+subscriptionCalls.length+"subscriptions");
+   if (subscriptionCalls.length > 0) {
+      log.trace("calling " + subscriptionCalls.length + "subscriptions");
       async.series(subscriptionCalls);
    }
 }
+
+/** this array contains the subscription calls made before the database has been initialized
+ * all the calls will be made again once the initialization is done*/
+var subscriptionQueue = [];
 
 OfflineSync = {
    minUpdateDelay: 120000 /*do not update more often than every two minutes*/,
@@ -205,7 +215,7 @@ OfflineSync = {
          }
       }
 
-      request.onerror = function(err) {
+      request.onerror = function (err) {
          log.error(err);
       }
    },
@@ -213,7 +223,7 @@ OfflineSync = {
       'use strict';
       /*first find out which collections are not in the database*/
       var collectionDefs = [];
-      _(collections).each(function(collection){
+      _(collections).each(function (collection) {
          collectionDefs.push(collection.collectionDef);
       })
       var newList = _.difference(_(_.toArray(collectionDefs)).pluck("hash"), _(_.toArray(client.collections)).pluck("hash"));
@@ -272,6 +282,15 @@ OfflineSync = {
                var tx = db.transaction("OFFLINE_ID", "readwrite");
                var store = tx.objectStore("OFFLINE_ID");
                store.put(client);
+               tx = OfflineSync.db.transaction(OfflineSync.db.objectStoreNames);
+               _(OfflineSync.db.objectStoreNames).each(function (storeName) {
+                  var store = tx.objectStore(storeName);
+                  /*store the number of documents from the indexeddb*/
+                  store.count().onsuccess = function (evt) {
+                     /*remove 2 from the count because the _lastUpdate and _lastRemoved should not be counted*/
+                     collections[storeName]._setStored(evt.target.result - 2);
+                  }
+               })
                subcribeAll(db);
             }
 
@@ -306,8 +325,8 @@ OfflineSync = {
          state: {
             readyDep: new Deps.Dependency(),
             isReady: false,
-            _setReady: function(value){
-               if(value != this.isReady){
+            _setReady: function (value) {
+               if (value != this.isReady) {
                   this.isReady = value;
                   this.readyDep.changed();
                }
@@ -316,14 +335,14 @@ OfflineSync = {
              * a reactive value to find out whether the subscription has finished
              * @returns {boolean}
              */
-            ready: function(){
+            ready: function () {
                this.readyDep.depend();
                return this.isReady;
             },
             /**
              * we only reset the ready value to false. the documents stay in the local collection
              */
-            stop: function(){
+            stop: function () {
                this._setReady(false);
             }
          }
@@ -333,41 +352,50 @@ OfflineSync = {
    },
 
    subscribe: function (name) {
-      if (publish[name] && _.isFunction(publish[name].pubFunction)) {
-         var insertDocs = function (collection, documents) {
-            _(documents).each(function (document) {
-               collection.insert(document);
-            });
-         }
-         /** get the docments by calling the pubFunction from the publish definition
-          * the result is either a single object or an array of objects. The objects must have two attributes:
-          * collection: the client side offline collection to which the documents should be added
-          * documents: an array of documents to be added to the collection*/
-         var args = Array.prototype.slice.call(arguments, 1);
-         var callback = undefined;
-         if(_.isFunction(_(args).last())){
-            callback = _(args).last();
-            args.pop();
-         }
-
-         /** because of the asynchronous nature of indexeddb, the result is provided in a callback*/
-         args.push(function(sub){
-            if (_.isArray(sub)) {
-               _.each(sub, function (res) {
-                  insertDocs(res.collection, res.documents);
+      var subArgs = arguments;
+      var subscriptionCall = function () {
+         if (publish[name] && _.isFunction(publish[name].pubFunction)) {
+            var insertDocs = function (collection, documents) {
+               _(documents).each(function (document) {
+                  collection.insert(document);
                });
-            } else {
-               insertDocs(sub.collection, sub.documents);
             }
-            publish[name].state._setReady(true);
-            if(callback) callback();
-         });
+            /** get the docments by calling the pubFunction from the publish definition
+             * the result is either a single object or an array of objects. The objects must have two attributes:
+             * collection: the client side offline collection to which the documents should be added
+             * documents: an array of documents to be added to the collection*/
+            var args = Array.prototype.slice.call(subArgs, 1);
+            var callback = undefined;
+            if (_.isFunction(_(args).last())) {
+               callback = _(args).last();
+               args.pop();
+            }
 
-         publish[name].pubFunction.apply(undefined, args);
+            /** because of the asynchronous nature of indexeddb, the result is provided in a callback*/
+            args.push(function (sub) {
+               if (_.isArray(sub)) {
+                  _.each(sub, function (res) {
+                     insertDocs(res.collection, res.documents);
+                  });
+               } else {
+                  insertDocs(sub.collection, sub.documents);
+               }
+               publish[name].state._setReady(true);
+               if (callback) callback();
+            });
 
+            publish[name].pubFunction.apply(undefined, args);
+
+         }
+      }
+
+
+      if (this.db) {
+         subscriptionCall();
+      } else {
+         subscriptionQueue.push(subscriptionCall);
       }
    }
-
 };
 
 Meteor.startup(function () {
@@ -401,7 +429,14 @@ OfflineSync.Collection = function (name, options) {
    syncCollection.find({}).observe(
       {
          added: function (newDoc) {
-            collection.insert(newDoc);
+            /*because of the way Meteor handles the collection on the server, an existing document might be added to
+             * the sync collection. This is why we first try to update and only after a failed update is the document
+             * inserted*/
+            collection.update({_id: newDoc._id}, {$set: _(newDoc).omit("_id")}, function (err, count) {
+               if (!err && !count) {
+                  collection.insert(newDoc);
+               }
+            })
             var tx = OfflineSync.db.transaction(self.name, "readwrite");
             var store = tx.objectStore(self.name);
             store.put(newDoc);
@@ -446,45 +481,45 @@ OfflineSync.Collection = function (name, options) {
 
    var readyDep = new Deps.Dependency;
    var isReady = false;
-   this._setReady = function(value){
-      if(value != isReady){
+   this._setReady = function (value) {
+      if (value != isReady) {
          isReady = value;
          readyDep.changed();
       }
    }
 
-   this.ready = function(){
+   this.ready = function () {
       readyDep.depend();
       return isReady;
    }
 
    var storedDep = new Deps.Dependency;
    var storedCount = false;
-   this._setStored = function(value){
-      if(value != storedCount){
+   this._setStored = function (value) {
+      if (value != storedCount) {
          storedCount = value;
          storedDep.changed();
       }
    }
 
-   this.stored = function(){
+   this.stored = function () {
       storedDep.depend();
       return storedCount;
    }
 
-   this.counts = function(){
+   this.counts = function () {
       var counts = OfflineSync.OfflineCollectionsCount.findOne({_id: self.name});
-      if(counts)
+      if (counts)
          counts.stored = this.stored();
 
       return counts;
    }
 
-   this.findOne = function(query){
+   this.findOne = function (query) {
       return collection.findOne(query || {});
    }
 
-   this.find = function(query){
+   this.find = function (query) {
       return collection.find(query || {});
    }
 

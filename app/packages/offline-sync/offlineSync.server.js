@@ -1,8 +1,6 @@
 var log = new Logger("offlineSync:server");
 Logger.setLevel({log: "trace"});
 
-log.trace("outside in package");
-
 Meteor.startup(function () {
 });
 
@@ -10,6 +8,8 @@ var offlineCollections = {};
 var collections = {};
 var chunkSize = 1000;
 var now = moment().unix();
+
+log.trace("now is " + now);
 
 var activeStreams = {};
 
@@ -40,14 +40,8 @@ OfflineSync.Collection = function (name, options) {
 
    /*every action is logged in order to be able to recreate it.
     * the actual data is not stored again and as the client has to fetch it explicitly, security rules can be enforced*/
-   collection.find({
-                      $and: [options.filter || {},
-                         {$or: [
-                            {_writeTimeStamp: {$gte: now}},
-                            {_writeTimeStamp: {$exists: false}}
-                         ]}]
-                   },
-                   {fields: {_writeTimeStamp: true}}).observe(
+   log.trace("starting observe for " + name);
+    collection.find(options ? options.filter || {} : {}).observe(
       {
          _suppress_initial: true,
          added: function (document) {
@@ -61,6 +55,7 @@ OfflineSync.Collection = function (name, options) {
             })
          },
          changed: function (newDoc, oldDoc) {
+            log.trace("document changed in " + name);
             /*if the _writeTimeStamp fields are the same in both documents, the update has not been made in this function
              * nor is it an insert from the observer*/
             if (newDoc._writeTimeStamp == oldDoc._writeTimeStamp) {
@@ -68,11 +63,16 @@ OfflineSync.Collection = function (name, options) {
                collection.update({_id: newDoc._id}, {$set: {_writeTimeStamp: now}})
                newDoc._writeTimeStamp = now;
                _(activeSubscriptions).each(function (sub) {
-                  sub.changed(name + "_OfflineClient", newDoc._id, newDoc);
+                  try{
+                     sub.changed(name + "_OfflineClient", newDoc._id, newDoc);
+                  } catch(err) {
+                     sub.added(name + "_OfflineClient", newDoc._id, newDoc);
+                  }
                })
             }
          },
          removed: function (document) {
+            log.trace("document removed from " + name);
             _(activeSubscriptions).each(function (sub) {
                /*set the origin on removal in order to distinguish between removal because the subscription was stopped
                 * and a real removal*/
@@ -91,6 +91,7 @@ OfflineSync.Collection = function (name, options) {
          }
       }
    );
+   log.trace("finished observe for " + name);
 
    /*each client will subscribe to the changes since the last time it started and will get all the documents which were
     removed since the last time it was connected*/

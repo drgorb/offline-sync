@@ -38,13 +38,14 @@ if (Meteor.isClient) {
             return tbabeCatalog.counts();
          },
          tbabeActivities: function() {
-            return tbabeActivities.counts();
+//            return tbabeActivities.counts();
          },
          kreis: function(){
             return tbabeCatalog.find({type: "kreis"});
          },
          selectedKreis: function(){
-            return Session.get("selectedKreis");
+            if(Session.get("selectedKreis"))
+               return tbabeCatalog.findOne({_id: Session.get("selectedKreis")._id});
          },
          strabsch: function(){
             if(Session.get("selectedKreis"))
